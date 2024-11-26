@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Keep Score</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="css/bootstrap.min.css" rel="stylesheet">
+        <link href="css/bootstrap-theme.min.css" rel="stylesheet">
+
+    </head>
+    <body >
+        <h3 style="margin:20px;">Keep Score</h3>
+        <div id="regdiv" class="container container-fluid" style="padding:20px; max-width: 1600px;">
+            
+            <div class="col-md-3" style="height:60px"> 
+                <label for="name_input">Name:</label><br>
+                <input type="text" id="name_input" name="name"><br>
+            </div>
+            <div class="col-md-3" style="height:60px">
+                <label for="chips_input">Chips:</label><br>
+                <input type="number" id="chips_input" name="chips">
+            </div>
+            <div class="col-xl-3">
+                <button type="button" class="btn btn-primary block" style="margin:20px;" onclick="addPerson()"><h5>Add Person</h5></button>
+            </div>
+            <div class="col-xs-3">
+                <button type="button" class="btn btn-success" onclick="startGame()"><h6>Start</h6></button>
+            </div>
+            <div class="col-xs-3">
+                <button type="button" class="btn btn-warning" onclick="clearPlayers()"><h6>Clear</h6></button>
+            </div>
+        </div>
+        <b><h5 id="debug_text" style="color:red;"></h5></b>
+        <b><h2 id="won_text" style="display:none;color:deeppink;">WHO WON??</h2></b>
+        <div class="col-xl-2">
+            <table class="table table-striped" style="align-self:center;width:80%">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Chips</th>
+                        <th>Bid</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="table_body"></tbody>
+            </table>
+        </div>
+
+        <div id="gamediv" class="container container-fluid" style="padding:20px; max-width: 1600px; display: none;">
+            
+            <h4 id="current_status"></h4>
+           
+            <div class="col-xl-3">
+                <button type="button" class="btn btn-primary" style="margin:20px;" onclick="raise()"><h6>Raise</h6></button>
+                <input type="number" id="raise_input" style="width:40%;" name="raiseinput">
+            </div>
+            <div class="col-md-3">
+                <button type="button" class="btn btn-success" style="width:30%;margin:20px;" onclick="call()"><h6>Call</h6></button>
+                <button type="button" class="btn btn-warning" style="width:30%;margin:20px;" onclick="fold()"><h6>Fold</h6></button>
+            </div>
+            <div class="col-xl-3" id="finishdiv">
+                <button type="button" class="btn btn-danger" style="width:60%;margin:20px;" onclick="finishGame()"><h4>Finish</h4></button>
+            </div>
+        </div>
+        
+        <script>
+            name_input.addEventListener('keypress',function(event){
+                if(event.key==='Enter'){addPerson()}});
+            chips_input.addEventListener('keypress',function(event){
+                if(event.key==='Enter'){addPerson()}});
+            class Person {
+                constructor(name, chips){
+                    this.name = name;
+                    this.chips = chips;
+                    this.bid = 0;
+                    this.folded = false;
+                    this.settled = false; //determines whether this person needs to take a turn
+                }
+            }
+            var people = [];
+            var pot = 0;
+            var bid = 0;
+            var roundnum = 1;
+            var currentid = -1;
+
+            function addPerson(){
+                let trimname = name_input.value.trim()
+                if(trimname.length < 1) {
+                    debug_text.innerHTML = 'Name cannot be empty';
+                    return;
+                }
+                let chipsvalue = parseInt(chips_input.value);
+                for(let person of people){
+                    if (trimname == person.name){
+                        debug_text.innerHTML = 'Person '+trimname+' already exists';
+                        return;
+                    }
+                }
+                if(isNaN(chipsvalue) || chipsvalue < 1){
+                    debug_text.innerHTML = 'Chips must be > 0';
+                    return;
+                }
+                people.push(new Person(trimname, chipsvalue));
+                console.log('Added Player '+trimname+' with chips '+chipsvalue)
+                name_input.value = '';
+                redrawNameChipTable();
+                name_input.focus();
+                debug_text.innerHTML = '';
+            }
+            function nextPerson(){
+                for(i in people){
+                    currentid += 1;
+                    currentid %= people.length;
+                    if(!people[currentid].folded){
+                        break;
+                    }
+                }
+                
+                redrawNameChipTable();
+                current_status.innerHTML = 'Bid: ' + bid.toString()
+                    + ' | Pot: ' + pot.toString()
+                    + ' | Round: ' + roundnum;
+                raise_input.value="";
+                console.log('Next person is now '+people[currentid].name);
+                finishdiv.style.display = 'none';
+            }
+            function nextRound(){
+                console.log('Next round, reset bid to 0, next person');
+                for(let person of people){
+                    person.settled = false;
+                    person.bid = 0;
+                }
+                bid = 0;
+                roundnum += 1;
+                nextPerson();
+                finishdiv.style.display = 'block';
+            }
+            function call(){
+                //sort out situation with negative chips
+                let chiptransfer = (bid-people[currentid].bid);
+                people[currentid].chips -= chiptransfer;
+                pot += chiptransfer;
+                people[currentid].bid = bid;
+                people[currentid].settled = true;
+                console.log('Player '+people[currentid].name+' called with '+chiptransfer+' additional chips')
+                checkRoundComplete();
+                //if all unfolded are equal, next round
+            }
+            function fold(){
+                //if all unfolded are equal, next round
+                people[currentid].folded = true;
+                people[currentid].settled = true;
+                console.log('Player '+people[currentid].name+' folded');
+                checkRoundComplete();
+            }
+            function raise(){
+                //prevent raising more chips than someone else has
+                //but will cap the amount of raising someone can do due to someone else
+                let raisevalue = parseInt(raise_input.value);
+                if(isNaN(raisevalue) || raisevalue < 1) {
+                    debug_text.innerHTML = 'Must raise positive number';
+                    return;
+                }
+                if((raisevalue + bid) > people[currentid].chips){
+                    debug_text.innerHTML = 'Cannot raise higher than existing chips';
+                    return;
+                }
+                let chiptransfer = bid-people[currentid].bid+raisevalue;
+                people[currentid].chips -= chiptransfer;
+                bid += raisevalue; 
+                pot += chiptransfer;
+                people[currentid].bid = bid;
+                for(let person of people){
+                    person.settled=false;
+                }
+                people[currentid].settled = true;
+                console.log('Player '+people[currentid].name+' raised ' + raisevalue)
+                nextPerson();
+            }
+            function checkRoundComplete(){
+                let varset=false;
+                let activeplayercount=0;
+                let currentbid=0;
+                for(let person of people){
+                    if(!person.folded){
+                        activeplayercount += 1;
+                    }
+                }
+                if(activeplayercount==1){//ended by folding
+                    console.log('One player left, game ended by folding')
+                    for(let person of people){
+                        if(!person.folded){
+                            person.chips += pot;
+                            console.log('Added '+pot.toString()+' chips to '+person.name);
+                            break;
+                        }
+                    }
+                    gameComplete();
+                } else {
+                    let roundcomplete = true;
+                    for(let person of people){
+                        if(!person.folded && !person.settled){
+                            roundcomplete = false;
+                        }
+                    }
+                    if(!roundcomplete){
+                        console.log('Round not yet complete, going to next person');
+                        nextPerson();
+                    }else{ 
+                        console.log('Round over, not all settled/folded');
+                        nextRound();
+                    }
+                }
+            }
+            function gameComplete(){
+                console.log('Game over, resetting');
+                regdiv.style.display='block';
+                gamediv.style.display='none';
+                for(let person of people){
+                    person.settled = false;
+                    person.bid = 0;
+                    person.folded = false;
+                }
+                bid = 0;
+                pot = 0;
+                roundnum = 0;
+                currentid = -1;
+                debug_text.innerHTML = '';
+                redrawNameChipTable();
+            }
+            function redrawNameChipTable(){
+                table_body.innerHTML = '';
+                for(let i=0;i<people.length;i++){
+                    let newrow = table_body.insertRow();
+                    if (i==currentid) {
+                        newrow.style.fontWeight = "bold";
+                    }
+                    let namecell = newrow.insertCell();
+                    let chipcell = newrow.insertCell();
+                    let bidcell = newrow.insertCell();
+                    let foldcell = newrow.insertCell();
+                    let foldtext = people[i].folded ? 'Folded' : 'Active';
+                    namecell.appendChild(document.createTextNode(people[i].name));
+                    //chipcell.appendChild(document.createTextNode(people[i].chips));
+                    let inputelem = document.createElement('input');
+                    inputelem.type = 'number';
+                    inputelem.value = people[i].chips;
+                    inputelem.addEventListener('focusout',function(event){
+                        changeChips(people[i].name, event.target.value);
+                    });
+                    inputelem.style.width='100px';
+                    /*
+                    inputelem.addEventListener('keypress',function(event){
+                        if(event.key==='Enter'){changeChips(people[i].name, event.target.value)}
+                    });*/
+                    chipcell.appendChild(inputelem);
+                    bidcell.appendChild(document.createTextNode(people[i].bid));
+                    foldcell.appendChild(document.createTextNode(foldtext));
+                }
+            }
+            function changeChips(name, chips){
+                let chipsvalue = parseInt(chips);
+                if(isNaN(chipsvalue) || chipsvalue < 1){
+                    debug_text.innerHTML = 'Chips must be > 0';
+                    return;
+                }
+                console.log('Changing chips value of '+name+' to '+chipsvalue)
+                for(let person of people){
+                    if(person.name == name){
+                        person.chips = chipsvalue;
+                    }
+                }
+                redrawNameChipTable();
+            }
+            function startGame(){
+                if(people.length < 2){
+                    debug_text.innerHTML = 'insufficient people';
+                    return;
+                }
+                debug_text.innerHTML = '';
+                console.log('Game Start with '+people.length+' players');
+                nextPerson();
+                regdiv.style.display='none';
+                gamediv.style.display='block';
+            }
+
+            function clearPlayers(){
+                let peoplelen = people.length;
+                people = [];
+                redrawNameChipTable();
+                debug_text.innerHTML = '';
+                console.log('Cleared '+peoplelen+' players');
+            }
+
+            function finishGame(){
+                console.log('Game Finished')
+                //check who won
+                drawWinCandidateTable();
+                regdiv.style.display='none';
+                gamediv.style.display='none';
+            }
+            function drawWinCandidateTable(){
+                won_text.style.display='block';
+                table_body.innerHTML = '';
+                for(let i=0;i<people.length;i++){
+                    if(!people[i].folded){
+                        let newrow = table_body.insertRow();
+                        let namecell = newrow.insertCell();
+                        let chipcell = newrow.insertCell();
+                        let link = document.createElement('button');
+                        link.setAttribute("onclick", "selectWinner(\""+people[i].name+"\")");
+                        let linktext=document.createTextNode(people[i].name);
+                        link.appendChild(linktext);
+                        namecell.appendChild(link);
+                        chipcell.appendChild(document.createTextNode(people[i].chips));
+                    }
+                }
+            }
+            function selectWinner(name){
+                //clear all fields, go back to start page
+                console.log('Selected '+name+' as winner.');
+                for(let person of people){
+                    if(person.name == name){
+                        person.chips += pot;
+                        console.log('Added '+pot.toString()+' chips to '+person.name);
+                        break;
+                    }
+                }
+                won_text.style.display='none';
+                gameComplete();
+            }
+
+            name_input.focus();
+        </script>
+    </body>
+</html>
