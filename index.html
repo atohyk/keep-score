@@ -90,22 +90,21 @@
 
              //Register wakelock
             async function getWakeLock(){
-                if('wakelock' in navigator){
+                if('wakeLock' in navigator){
                    console.log('Wakelock supported');
                     try {
                         wakelock = await navigator.wakeLock.request('screen');
                         console.log('Wakelock active');
-                        debug_text.innerHTML = 'Wakelock active';
+                        //debug_text.innerHTML = 'Wakelock active';
                     } catch(err) {
                         console.log(err.name+' , '+err.message);
                     }
                 }
                 else {
                     console.log('No wakelock capability');
-                    debug_text.innerHTML = 'No wakelock capability';
+                    //debug_text.innerHTML = 'No wakelock capability';
                 }
             }
-
             getWakeLock();
 
             function addPerson(){
