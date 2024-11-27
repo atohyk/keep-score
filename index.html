@@ -13,7 +13,7 @@
             
             <div class="col-md-3" style="height:60px"> 
                 <label for="name_input">Name:</label><br>
-                <input type="text" id="name_input" name="name"><br>
+                <input type="text" id="name_input" name="name">
             </div>
             <div class="col-md-3" style="height:60px">
                 <label for="chips_input">Chips:</label><br>
@@ -63,10 +63,7 @@
         </div>
         
         <script>
-            name_input.addEventListener('keypress',function(event){
-                if(event.key==='Enter'){addPerson()}});
-            chips_input.addEventListener('keypress',function(event){
-                if(event.key==='Enter'){addPerson()}});
+            //Class Definitions
             class Person {
                 constructor(name, chips){
                     this.name = name;
@@ -76,11 +73,40 @@
                     this.settled = false; //determines whether this person needs to take a turn
                 }
             }
+
+            //Event Listeners
+            name_input.addEventListener('keypress',function(event){
+                if(event.key==='Enter'){addPerson()}});
+            chips_input.addEventListener('keypress',function(event){
+                if(event.key==='Enter'){addPerson()}});
+            
+            //init vars
             var people = [];
             var pot = 0;
             var bid = 0;
             var roundnum = 1;
             var currentid = -1;
+            var wakelock = null;
+
+             //Register wakelock
+            async function getWakeLock(){
+                if('wakelock' in navigator){
+                   console.log('Wakelock supported');
+                    try {
+                        wakelock = await navigator.wakeLock.request('screen');
+                        console.log('Wakelock active');
+                        debug_text.innerHTML = 'Wakelock active';
+                    } catch(err) {
+                        console.log(err.name+' , '+err.message);
+                    }
+                }
+                else {
+                    console.log('No wakelock capability');
+                    debug_text.innerHTML = 'No wakelock capability';
+                }
+            }
+
+            getWakeLock();
 
             function addPerson(){
                 let trimname = name_input.value.trim()
